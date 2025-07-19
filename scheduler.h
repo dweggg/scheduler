@@ -1,3 +1,4 @@
+// scheduler.h
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
@@ -38,5 +39,18 @@ void scheduler_run(void);
  * @brief Get the current tick value from the scheduler's tick source.
  */
 uint32_t scheduler_get_tick(void);
+
+/**
+ * @brief Change the period of a task.
+ * @param function The task function to identify the task.
+ * @param new_period_seconds New period in seconds.
+ * @return true if task was found and updated, false otherwise.
+ */
+bool scheduler_set_task_period(TaskFunction_t function, float period);
+
+/**
+ * @brief Get the most recent CPU usage percentage (0.0f - 100.0f).
+ */
+float scheduler_get_cpu(void);
 
 #endif // SCHEDULER_H
