@@ -1,4 +1,4 @@
-// scheduler.h
+/* scheduler.h */
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
@@ -18,6 +18,7 @@ typedef struct {
     uint32_t       last_tick;
     uint32_t       exec_count;
     uint32_t       last_exec_us;
+    uint8_t        enabled;       // new: task enable flag
 } SchedTask_t;
 
 /**
@@ -64,5 +65,19 @@ uint32_t scheduler_get_last_exec_time_us(SchedTaskFn_t fn);
  * @brief Get last-measured CPU usage as an integer percent (0–100).
  */
 uint8_t scheduler_get_cpu(void);
+
+/**
+ * @brief Enable a previously added task.
+ * @param fn  Task function to enable.
+ * @return SCHED_SUCCESS if found+enabled; SCHED_FAILURE otherwise.
+ */
+int scheduler_start_task(SchedTaskFn_t fn);
+
+/**
+ * @brief Disable a previously added task.
+ * @param fn  Task function to disable.
+ * @return SCHED_SUCCESS if found+disabled; SCHED_FAILURE otherwise.
+ */
+int scheduler_stop_task(SchedTaskFn_t fn);
 
 #endif // SCHEDULER_H

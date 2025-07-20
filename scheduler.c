@@ -1,4 +1,4 @@
-// scheduler.c
+/* scheduler.c */
 #include "scheduler.h"
 #include <stddef.h>
 
@@ -24,6 +24,7 @@ void scheduler_init(SchedTickSrc_t tick_source, uint32_t ticks_per_sec) {
         sched_tasks[i].period_ticks = 0;
         sched_tasks[i].last_tick    = 0;
         sched_tasks[i].exec_count   = 0;
+        sched_tasks[i].enabled      = 0;
     }
 
     sched_window_start = sched_tick_source();
@@ -50,6 +51,7 @@ int scheduler_add_task(SchedTaskFn_t fn, uint32_t freq_hz) {
             sched_tasks[i].period_ticks = period;
             sched_tasks[i].last_tick    = now;
             sched_tasks[i].exec_count   = 0;
+            sched_tasks[i].enabled      = 1; // start enabled
             return SCHED_SUCCESS;
         }
     }
@@ -64,7 +66,7 @@ void scheduler_run(void) {
         SchedTask_t *next = NULL;
         for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
             SchedTask_t *t = &sched_tasks[i];
-            if (t->task_fn == NULL) continue;
+            if (t->task_fn == NULL || !t->enabled) continue;
             if ((now - t->last_tick) >= t->period_ticks) {
                 if (next == NULL || t->period_ticks < next->period_ticks) {
                     next = t;
@@ -135,4 +137,26 @@ uint32_t scheduler_get_last_exec_time_us(SchedTaskFn_t fn) {
 
 uint8_t scheduler_get_cpu(void) {
     return sched_last_cpu_pct;
+}
+
+int scheduler_start_task(SchedTaskFn_t fn) {
+    if (!fn) return SCHED_FAILURE;
+    for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+        if (sched_tasks[i].task_fn == fn) {
+            sched_tasks[i].enabled = 1;
+            return SCHED_SUCCESS;
+        }
+    }
+    return SCHED_FAILURE;
+}
+
+int scheduler_stop_task(SchedTaskFn_t fn) {
+    if (!fn) return SCHED_FAILURE;
+    for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+        if (sched_tasks[i].task_fn == fn) {
+            sched_tasks[i].enabled = 0;
+            return SCHED_SUCCESS;
+        }
+    }
+    return SCHED_FAILURE;
 }
