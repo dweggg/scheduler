@@ -1,109 +1,123 @@
 // scheduler.c
 #include "scheduler.h"
-#include <stdlib.h>
+#include <stddef.h>
 
-static Task_t       task_list[MAX_TASKS];
-static TickSource_t get_ticks;
-static uint32_t     ticks_per_s;
+static SchedTask_t   sched_tasks[SCHED_MAX_TASKS];
+static SchedTickSrc_t sched_tick_source;
+static uint32_t       sched_ticks_per_sec;
 
-// CPU usage vars
-static uint32_t     window_start_tick;
-static uint32_t     idle_count;
-static uint32_t     total_loops;
-static float        last_cpu;
+// CPU‐usage window tracking
+static uint32_t       sched_window_start;
+static uint32_t       sched_idle_loops;
+static uint32_t       sched_total_loops;
+static uint8_t        sched_last_cpu_pct;
 
-void scheduler_init(TickSource_t tick_function, uint32_t ticks_per_second) {
-    get_ticks   = tick_function;
-    ticks_per_s = ticks_per_second;
+// dummy counter to burn cycles when idle
+static uint32_t       sched_dummy;
 
-    for (int i = 0; i < MAX_TASKS; i++) {
-        task_list[i].function      = NULL;
-        task_list[i].period_ticks  = 0;
-        task_list[i].last_run_tick = 0;
-        task_list[i].exec_count    = 0;
+void scheduler_init(SchedTickSrc_t tick_source, uint32_t ticks_per_sec) {
+    sched_tick_source   = tick_source;
+    sched_ticks_per_sec = ticks_per_sec;
+
+    for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+        sched_tasks[i].task_fn      = NULL;
+        sched_tasks[i].period_ticks = 0;
+        sched_tasks[i].last_tick    = 0;
+        sched_tasks[i].exec_count   = 0;
     }
 
-    window_start_tick = get_ticks();
-    idle_count        = 0;
-    total_loops       = 0;
-    last_cpu          = 0.0f;
+    sched_window_start = sched_tick_source();
+    sched_idle_loops   = 0;
+    sched_total_loops  = 0;
+    sched_last_cpu_pct = 0;
 }
 
-bool scheduler_add_task(TaskFunction_t function, float period_seconds) {
-    if (!function || period_seconds <= 0.0f) return false;
+int scheduler_add_task(SchedTaskFn_t fn, uint32_t freq_hz) {
+    if (fn == NULL || freq_hz == 0) {
+        return SCHED_FAILURE;
+    }
 
-    uint32_t period = (uint32_t)(period_seconds * (float)ticks_per_s);
-    uint32_t now    = get_ticks();
+    // Compute ticks per invocation (round up to at least 1)
+    uint32_t period = sched_ticks_per_sec / freq_hz;
+    if (period == 0) {
+        period = 1;
+    }
 
-    for (int i = 0; i < MAX_TASKS; i++) {
-        if (!task_list[i].function) {
-            task_list[i].function      = function;
-            task_list[i].period_ticks  = period;
-            task_list[i].last_run_tick = now;
-            task_list[i].exec_count    = 0;
-            return true;
+    uint32_t now = sched_tick_source();
+    for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+        if (sched_tasks[i].task_fn == NULL) {
+            sched_tasks[i].task_fn      = fn;
+            sched_tasks[i].period_ticks = period;
+            sched_tasks[i].last_tick    = now;
+            sched_tasks[i].exec_count   = 0;
+            return SCHED_SUCCESS;
         }
     }
-    return false;
+    return SCHED_FAILURE;
 }
-
-static uint32_t dummy = 0;
 
 void scheduler_run(void) {
     while (1) {
-        total_loops++;
-        uint32_t now = get_ticks();
+        sched_total_loops++;
+        uint32_t now = sched_tick_source();
 
-        // pick next ready task
-        Task_t *next = NULL;
-        for (int i = 0; i < MAX_TASKS; i++) {
-            Task_t *t = &task_list[i];
-            if (!t->function) continue;
-            if ((now - t->last_run_tick) >= t->period_ticks) {
-                if (!next || t->period_ticks < next->period_ticks) next = t;
+        // find the next ready task (earliest period)
+        SchedTask_t *next = NULL;
+        for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+            SchedTask_t *t = &sched_tasks[i];
+            if (t->task_fn == NULL) continue;
+            if ((now - t->last_tick) >= t->period_ticks) {
+                if (next == NULL || t->period_ticks < next->period_ticks) {
+                    next = t;
+                }
             }
         }
 
         if (next) {
-            next->function();
-            // catch up by one period to avoid backlog
-            next->last_run_tick += next->period_ticks;
+            next->task_fn();
+            next->last_tick += next->period_ticks;
+            next->exec_count++;
         } else {
-            dummy++;
-            idle_count++;
+            sched_dummy++;
+            sched_idle_loops++;
         }
 
-        // update CPU usage every second based on tick source
-        if ((now - window_start_tick) >= ticks_per_s) {
-            // idle_ratio = idle loops / total loops in window
-            float idle_ratio = total_loops ? ((float)idle_count / (float)total_loops) : 1.0f;
-            if (idle_ratio > 1.0f) idle_ratio = 1.0f;
-            last_cpu = (1.0f - idle_ratio) * 100.0f;
-
-            // reset for next window
-            window_start_tick = now;
-            idle_count        = 0;
-            total_loops       = 0;
+        // update CPU usage once per second
+        if ((now - sched_window_start) >= sched_ticks_per_sec) {
+            if (sched_total_loops > 0) {
+                uint32_t busy = sched_total_loops - sched_idle_loops;
+                sched_last_cpu_pct = (uint8_t)((busy * 100U) / sched_total_loops);
+            } else {
+                sched_last_cpu_pct = 0;
+            }
+            sched_window_start = now;
+            sched_idle_loops   = 0;
+            sched_total_loops  = 0;
         }
     }
 }
 
 uint32_t scheduler_get_tick(void) {
-    return get_ticks ? get_ticks() : 0;
+    return (sched_tick_source ? sched_tick_source() : 0U);
 }
 
-bool scheduler_set_task_period(TaskFunction_t function, float period_seconds) {
-    if (!function || period_seconds <= 0.0f) return false;
-    uint32_t new_t = (uint32_t)(period_seconds * (float)ticks_per_s);
-    for (int i = 0; i < MAX_TASKS; i++) {
-        if (task_list[i].function == function) {
-            task_list[i].period_ticks = new_t;
-            return true;
+int scheduler_set_task_frequency(SchedTaskFn_t fn, uint32_t freq_hz) {
+    if (fn == NULL || freq_hz == 0) {
+        return SCHED_FAILURE;
+    }
+    uint32_t new_period = sched_ticks_per_sec / freq_hz;
+    if (new_period == 0) {
+        new_period = 1;
+    }
+    for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+        if (sched_tasks[i].task_fn == fn) {
+            sched_tasks[i].period_ticks = new_period;
+            return SCHED_SUCCESS;
         }
     }
-    return false;
+    return SCHED_FAILURE;
 }
 
-float scheduler_get_cpu(void) {
-    return last_cpu;
+uint8_t scheduler_get_cpu(void) {
+    return sched_last_cpu_pct;
 }
