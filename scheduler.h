@@ -17,6 +17,7 @@ typedef struct {
     uint32_t       period_ticks;
     uint32_t       last_tick;
     uint32_t       exec_count;
+    uint32_t       last_exec_us;
 } SchedTask_t;
 
 /**
@@ -51,6 +52,13 @@ uint32_t scheduler_get_tick(void);
  * @return SCHED_SUCCESS if found+updated; SCHED_FAILURE otherwise.
  */
 int scheduler_set_task_frequency(SchedTaskFn_t fn, uint32_t freq_hz);
+
+/**
+ * @brief Get the last execution time (in microseconds) of a task.
+ * @param fn  Task function to query.
+ * @return Last execution time in microseconds, or 0 if task not found.
+ */
+uint32_t scheduler_get_last_exec_time_us(SchedTaskFn_t fn);
 
 /**
  * @brief Get last-measured CPU usage as an integer percent (0–100).

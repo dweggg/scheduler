@@ -61,7 +61,6 @@ void scheduler_run(void) {
         sched_total_loops++;
         uint32_t now = sched_tick_source();
 
-        // find the next ready task (earliest period)
         SchedTask_t *next = NULL;
         for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
             SchedTask_t *t = &sched_tasks[i];
@@ -74,7 +73,14 @@ void scheduler_run(void) {
         }
 
         if (next) {
+            uint32_t start = sched_tick_source();
             next->task_fn();
+            uint32_t end = sched_tick_source();
+
+            // Calculate execution time in microseconds
+            uint32_t delta_ticks = end - start;
+            next->last_exec_us = (delta_ticks * 1000000U) / sched_ticks_per_sec;
+
             next->last_tick += next->period_ticks;
             next->exec_count++;
         } else {
@@ -82,7 +88,6 @@ void scheduler_run(void) {
             sched_idle_loops++;
         }
 
-        // update CPU usage once per second
         if ((now - sched_window_start) >= sched_ticks_per_sec) {
             if (sched_total_loops > 0) {
                 uint32_t busy = sched_total_loops - sched_idle_loops;
@@ -116,6 +121,16 @@ int scheduler_set_task_frequency(SchedTaskFn_t fn, uint32_t freq_hz) {
         }
     }
     return SCHED_FAILURE;
+}
+
+uint32_t scheduler_get_last_exec_time_us(SchedTaskFn_t fn) {
+    if (!fn) return 0;
+    for (uint32_t i = 0; i < SCHED_MAX_TASKS; i++) {
+        if (sched_tasks[i].task_fn == fn) {
+            return sched_tasks[i].last_exec_us;
+        }
+    }
+    return 0;
 }
 
 uint8_t scheduler_get_cpu(void) {
