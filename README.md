@@ -69,9 +69,26 @@ int main(void) {
 }
 ```
 
-You can also modify the task frequencies at runtime and start/stop them. If you need to run tasks slower than 1s you could do something like this:
+There's a couple of useful features you can use at runtime:
+```c
+scheduler_set_task_frequency(task_b, 1000); // now task_b will run at 1kHz
+
+uint32_t task_a_load;
+task_a_load = scheduler_get_last_exec_time_us(task_a); // the variable task_a_load will hold the amount of microseconds that took task_a to be completed the last time it ran
+
+scheduler_stop_task(task_a); // task_a will stop running
+
+uint32_t current_tick;
+current_tick = scheduler_get_tick(); // the variable current_tick will hold the current tick of the scheduler at the time of calling the function.
+
+uint8_t cpu;
+cpu = scheduler_get_cpu(); // the variable cpu will hold a rough estimate of the current cpu load.
 
 ```
+
+If you need to run tasks slower than 1s you could do something like this:
+
+```c
 void task_10s(void){
   // your code here
 }
