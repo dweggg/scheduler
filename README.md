@@ -77,6 +77,7 @@ uint32_t task_a_load;
 task_a_load = scheduler_get_last_exec_time_us(task_a); // the variable task_a_load will hold the amount of microseconds that took task_a to be completed the last time it ran
 
 scheduler_stop_task(task_a); // task_a will stop running
+scheduler_start_task(task_a); // task_a will start running again
 
 uint32_t current_tick;
 current_tick = scheduler_get_tick(); // the variable current_tick will hold the current tick of the scheduler at the time of calling the function.
