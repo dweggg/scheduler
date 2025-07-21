@@ -1,5 +1,7 @@
 # Scheduler
 
+If your project’s outgrowing a timer ISR or a while(1) loop but using an RTOS feels like overkill, this might be what you're looking for. It’s a cooperative task scheduler, so it’s not smart, but it’s damn fast. Fast enough to run tasks at several kHz on modest MCUs.
+
 A minimalist, portable, cooperative task scheduler written in C. Designed for bare‑metal environments in which interrupt nesting could become nasty.
 It requires only the provided `.c`/`.h` pair. It's lightweight enough to run tasks at several kHz in ~80MHz CPUs.
 
@@ -111,6 +113,10 @@ void task_1s(void) {
 }
 ```
 
+**⚠️The scheduler will not work if:**
+- You use an infinite loop inside a task
+- A task takes too long to finish and blocks others (it's cooperative, so no preemption means you're responsible for being quick)
+- Code running in ISRs hogs the CPU
 ---
 
 ## 🌐 Adapting to Your Platform
