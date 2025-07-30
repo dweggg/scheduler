@@ -1,6 +1,7 @@
 # Scheduler
 
-If your code is running across multiple ISRs or tangled in a while(1) loop, things will get messy real quick. You might have thought about an RTOS, but if that feels like overkill, this scheduler could be just right for you! It’s cooperative, so not smart, but fast enough to run multiple tasks at several kHz on modest MCUs without the heavyweight overhead.
+My dummy simple and fast scheduler for embedded with the features I need.
+
 ---
 
 ## 📋 Requirements
@@ -10,8 +11,6 @@ If your code is running across multiple ISRs or tangled in a while(1) loop, thin
 ---
 
 ## 🖥️ Example: STM32 (ARM Cortex‑M4)
-
-Below is a complete `main.c` demonstrating integration on an STM32 using the DWT cycle counter as the tick source.
 
 ```c
 
@@ -27,11 +26,12 @@ static void dwt_init(void) {
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 }
 
-// 2) Our tick‐source function: just return the 32‑bit cycle counter
+// 2) Our tick source function just returns the 32‑bit cycle counter
 static uint32_t dwt_get_ticks(void) {
     return DWT->CYCCNT;
 }
 
+// 3) Write tasks
 uint32_t task_a_freq = 10000; // task a will run at 10kHz, or once every 100us
 void task_a(void) {
     // place your code here
@@ -45,20 +45,20 @@ void task_b(void) {
 }
 
 int main(void) {
-    // Initialize DWT
+    // 4) Initialize DWT
     dwt_init();
 
-    // Initialize scheduler with the tick source
+    // 5) Initialize scheduler with the tick source
     scheduler_init(
         dwt_get_ticks, // this is the pointer to a function that returns a uint32_t (always increasing counter)
         HAL_RCC_GetSysClockFreq() // this is a uint32_t that indicates the number of ticks generated per second by your tick source
     );
 
-    // Schedule tasks
+    // 6) Add tasks
     scheduler_add_task(task_a, task_a_freq);
     scheduler_add_task(task_b, task_b_freq);
 
-    // Start the scheduler (never returns)
+    // 7) Start the scheduler (never returns)
     scheduler_run();
 
     // Should never reach here
@@ -68,6 +68,7 @@ int main(void) {
 ```
 
 There's a couple of useful features you can use at runtime:
+
 ```c
 scheduler_set_task_frequency(task_b, 1000); // now task_b will run at 1kHz
 
@@ -113,14 +114,6 @@ void task_1s(void) {
 - You use an infinite loop inside a task
 - A task takes too long to finish and blocks others (it's cooperative, so no preemption means you're responsible for being quick)
 - Code running in ISRs hogs the CPU
----
-
-## 🌐 Adapting to Your Platform
-
-To use this scheduler on non‑STM32 or non‑ARM platforms read this:
-   * Implement `uint32_t get_ticks(void)` using any hardware timer, just make it return the timer's 32-bit counter. It would be ideal if you are able to run or tap a counter at your CPU speed such as DWT.
-   * Ensure it rolls over gracefully (32‑bit wraparound, sawtooth shape) and increments at a constant rate.
-   * Set `ticks_per_second` to your timer/CPU frequency.
 ---
 
 ## 📄 License
