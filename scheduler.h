@@ -7,7 +7,6 @@
 #define SCHED_MAX_TASKS       10
 #define SCHED_SUCCESS         1
 #define SCHED_FAILURE         0
-#define SCHED_CPU_WINDOW_US   1000000U  // not used externally
 
 typedef void     (*SchedTaskFn_t)(void);
 typedef uint32_t (*SchedTickSrc_t)(void);
@@ -18,7 +17,7 @@ typedef struct {
     uint32_t       last_tick;
     uint32_t       exec_count;
     uint32_t       last_exec_us;
-    uint8_t        enabled;       // new: task enable flag
+    uint8_t        enabled;
 } SchedTask_t;
 
 /**
