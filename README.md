@@ -38,7 +38,7 @@ void task_a(void) {
 }
 
 
-uint32_t task_b_freq = 300; // task b will run at 200Hz, or once every 5000us
+uint32_t task_b_freq = 200; // task b will run at 200Hz, or once every 5000us
 void task_b(void) {
     // place your other code here
 
